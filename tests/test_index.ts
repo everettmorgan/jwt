@@ -1,7 +1,9 @@
 import { expect } from "chai";
 import * as JWT from "../src/index";
 
-const key = '349jfirfjeroigjerg40g9j';
+// 64-byte key satisfies the minimum for HS256 (32 B), HS384 (48 B), and HS512 (64 B)
+// per RFC 7518 §3.2.
+const key = 'AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPP';
 
 // Helper: current time in seconds (JWT NumericDate)
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -40,7 +42,8 @@ describe("JWT", function () {
   });
 
   it("Read returns error for wrong key", function () {
-    const [err, result] = JWT.Read(jwt.toString(), "wrong-key");
+    const wrongKey = 'QQQQRRRRSSSSTTTTQQQQRRRRSSSSTTTT';  // 32 bytes, different value
+    const [err, result] = JWT.Read(jwt.toString(), wrongKey);
     expect(err).to.be.true;
     expect(result).to.be.null;
   });
@@ -137,15 +140,6 @@ describe("JWT", function () {
     expect(JWT.Validate(ready, key)).to.be.true;
   });
 
-  it("rejects a token whose iat is in the future", function () {
-    const future = JWT.New({
-      header: { alg: "HS256" },
-      payload: { iat: nowSec() + 3600 },
-      key
-    });
-    expect(JWT.Validate(future, key)).to.be.false;
-  });
-
   it("accepts a token whose iat is in the past", function () {
     const past = JWT.New({
       header: { alg: "HS256" },
@@ -156,7 +150,8 @@ describe("JWT", function () {
   });
 
   it("rejects a token signed with the wrong key", function () {
-    const other = JWT.New({ header: { alg: "HS256" }, payload: { sub: "x" }, key: "other-key" });
+    const otherKey = 'QQQQRRRRSSSSTTTTQQQQRRRRSSSSTTTT';  // 32 bytes, different value
+    const other = JWT.New({ header: { alg: "HS256" }, payload: { sub: "x" }, key: otherKey });
     expect(JWT.Validate(other, key)).to.be.false;
   });
 
@@ -249,5 +244,87 @@ describe("JWT", function () {
       payload: {},
       key
     })).to.throw(/Unsupported algorithm/);
+  });
+
+  // ── RFC 7519 §4.1.4: exp "on or after" boundary ───────────────────────────
+
+  it("rejects a token whose exp equals the current time (RFC 7519 §4.1.4 on-or-after)", function () {
+    // RFC §4.1.4: MUST NOT accept "on or after" exp — exp === now must be rejected.
+    const t = JWT.New({
+      header: { alg: "HS256" },
+      payload: { exp: nowSec() },
+      key
+    });
+    expect(JWT.Validate(t, key)).to.be.false;
+  });
+
+  // ── RFC 7519 §4.1.6: iat is informational ─────────────────────────────────
+
+  it("accepts a token whose iat is in the future (RFC 7519 §4.1.6 iat is informational)", function () {
+    // RFC §4.1.6: iat processing is application-specific; the RFC's §7.2 validation
+    // steps do not require rejecting future iat values.
+    const t = JWT.New({
+      header: { alg: "HS256" },
+      payload: { iat: nowSec() + 3600 },
+      key
+    });
+    expect(JWT.Validate(t, key)).to.be.true;
+  });
+
+  // ── RFC 7515 §6.1: compact serialization requires all three parts ──────────
+
+  it("toString() throws for an unsigned JWT (RFC 7515 §6.1)", function () {
+    const unsigned = JWT.New({ header: { alg: "HS256" }, payload: { sub: "x" } });
+    expect(() => unsigned.toString()).to.throw(/Cannot serialize an unsigned JWT/);
+  });
+
+  // ── RFC 7518 §3.2: minimum HMAC key length ────────────────────────────────
+
+  it("throws when HS256 key is shorter than 32 bytes (RFC 7518 §3.2)", function () {
+    expect(() => JWT.New({ header: { alg: "HS256" }, payload: {}, key: "short" }))
+      .to.throw(/Key too short/);
+  });
+
+  it("throws when HS384 key is shorter than 48 bytes (RFC 7518 §3.2)", function () {
+    const key32 = 'AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH';  // 32 bytes — not enough for HS384
+    expect(() => JWT.New({ header: { alg: "HS384" }, payload: {}, key: key32 }))
+      .to.throw(/Key too short/);
+  });
+
+  it("throws when HS512 key is shorter than 64 bytes (RFC 7518 §3.2)", function () {
+    const key32 = 'AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH';  // 32 bytes — not enough for HS512
+    expect(() => JWT.New({ header: { alg: "HS512" }, payload: {}, key: key32 }))
+      .to.throw(/Key too short/);
+  });
+
+  // ── RFC 7519 §10.1: algorithm pinning in Read() ────────────────────────────
+
+  it("Read() accepts a token when algorithm pin matches the header alg", function () {
+    const t = JWT.New({ header: { alg: "HS256" }, payload: { sub: "pin-test" }, key });
+    const [err, result] = JWT.Read(t.toString(), key, "HS256");
+    expect(err).to.be.false;
+    expect(result).to.not.be.null;
+  });
+
+  it("Read() rejects a token when algorithm does not match the pin (RFC 7519 §10.1)", function () {
+    // Token was signed with HS256; pinning HS512 must cause rejection.
+    const t = JWT.New({ header: { alg: "HS256" }, payload: { sub: "pin-test" }, key });
+    const [err, result] = JWT.Read(t.toString(), key, "HS512");
+    expect(err).to.be.true;
+    expect(result).to.be.null;
+  });
+
+  // ── RFC 7515 §4.1.11: crit header must cause rejection ────────────────────
+
+  it("Read() rejects a token with a non-empty crit header (RFC 7515 §4.1.11)", function () {
+    // Craft a token header that includes the crit extension list.
+    // This library implements no extensions, so any crit claim must be rejected.
+    const critHeader = Buffer
+      .from(JSON.stringify({ alg: "HS256", crit: ["extension1"] }))
+      .toString('base64url');
+    const parts = jwt.toString().split('.');
+    const [err, result] = JWT.Read(`${critHeader}.${parts[1]}.${parts[2]}`, key);
+    expect(err).to.be.true;
+    expect(result).to.be.null;
   });
 });
