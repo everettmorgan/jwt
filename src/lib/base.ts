@@ -85,20 +85,10 @@ export interface JWSRegisteredHeaderParameters extends JOSEHeaders {
    * used to secure the JWS.
    * Optional. Case-sensitive.
    */
-  alg:
-    | 'sha256'
-    | 'sha384'
-    | 'sha512'
-    | 'rs256'
-    | 'rs384'
-    | 'rs512'
-    | 'es256'
-    | 'es384'
-    | 'es512'
-    | 'ps256'
-    | 'ps384'
-    | 'ps512'
-    | 'none';
+  // Only HMAC-SHA algorithms are currently supported (RFC 7518 §3.2).
+  // RSA, ECDSA, PSS, and 'none' are intentionally excluded: asymmetric
+  // algorithms are not yet implemented, and 'none' produces unsigned tokens.
+  alg: 'HS256' | 'HS384' | 'HS512';
 
   /**
    * JKU : jwk set url :  is a URI that refers to a resource for a
