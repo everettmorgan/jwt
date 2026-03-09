@@ -64,7 +64,8 @@ function Validate(jwt: JSONWebToken, key: string): boolean {
   const notBefore = jwt.payload.nbf;
   const issuedAt = jwt.payload.iat;
   const { signature } = jwt;
-  const now = Date.now();
+  // JWT NumericDate values are seconds since epoch (RFC 7519 §2)
+  const now = Math.floor(Date.now() / 1000);
   // eslint-disable-next-line no-use-before-define
   const check = Sign(jwt, key);
 
@@ -77,7 +78,13 @@ function Validate(jwt: JSONWebToken, key: string): boolean {
   return true;
 }
 
+const SUPPORTED_ALGORITHMS = ['sha256', 'sha384', 'sha512'];
+
 function Sign(jwt: JSONWebToken, key: string) {
+  if (!SUPPORTED_ALGORITHMS.includes(jwt.header.alg)) {
+    throw new Error(`Unsupported algorithm: ${jwt.header.alg}`);
+  }
+
   const headerString = JSON.stringify(jwt.header);
   const payloadString = JSON.stringify(jwt.payload);
 
@@ -86,7 +93,8 @@ function Sign(jwt: JSONWebToken, key: string) {
 
   const toSign = `${headerBase64}.${payloadBase64}`;
 
-  return crypto.createHmac(jwt.header.alg, key).update(toSign).digest('base64');
+  // Use base64url encoding as required by RFC 7515
+  return crypto.createHmac(jwt.header.alg, key).update(toSign).digest('base64url');
 }
 
 export {
