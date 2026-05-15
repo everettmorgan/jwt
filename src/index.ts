@@ -1,2 +1,17 @@
-// eslint-disable-next-line import/no-unresolved, import/extensions
-export { New, Read, Validate } from './lib/jwt';
+export {
+  JwtError,
+  decode,
+  sign,
+  verify,
+} from './lib/jwt';
+
+export type {
+  DecodedJwt,
+  JwtAlgorithm,
+  JwtErrorCode,
+  JwtHeader,
+  JwtPayload,
+  JwtSecret,
+  SignOptions,
+  VerifyOptions,
+} from './lib/jwt';

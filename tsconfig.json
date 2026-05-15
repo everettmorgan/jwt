@@ -1,23 +1,31 @@
 {
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"],
   "compilerOptions": {
-    "outDir": "dist",
-    "declaration": true,
-    "declarationDir": "dist/types",
-    "target": "ESNext",
-    "module": "CommonJS",
-    "strict": true,
-    "skipLibCheck": true,
     "alwaysStrict": true,
+    "declaration": true,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "noImplicitAny": true,
-    "noImplicitReturns": false,
-    "noUnusedLocals": true,
-    "experimentalDecorators": true,
-    "noImplicitThis": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "newLine": "lf",
     "noFallthroughCasesInSwitch": true,
-    "sourceMap": true
-  }
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
